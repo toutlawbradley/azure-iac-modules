@@ -12,9 +12,6 @@ requires a real reason, written down, before it gets added.
 
 - First hands-on infrastructure-as-code project, distinct from [GuardLine](#) (application/tooling
   security scanner, shipped).
-- Runs in parallel with AZ-104 study — the cert study makes the modules more correct and idiomatic;
-  building the modules makes the cert concepts concrete.
-- Feeds directly into a later GitOps pipeline project, which will consume these modules.
 - The Key Vault module is a deliberate callback to GuardLine's secrets-detection scanner: this is
   the pattern GuardLine tells people to use instead of hardcoding credentials.
 
