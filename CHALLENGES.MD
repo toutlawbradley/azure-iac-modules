@@ -1,7 +1,7 @@
 # ADR-0001: Terraform vs. Bicep
 
 **Status:** Accepted
-**Date:** 2026-08-09
+**Date:** 2026-08-04
 
 ## Context
 
