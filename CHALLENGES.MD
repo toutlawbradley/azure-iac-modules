@@ -163,4 +163,13 @@ in CI going forward — a real, concrete first case for why that scanner is in t
 
 ---
 
+### [Phase 1] Decision: "Allow" Port 80 rather than "Deny" 
+
+**Date:** 2026-09-06
+**Options considered:** Allowing inbound Port 80, Denying inbound Port 80
+**Chose:** "Allow" inbound Port 80
+**Why:** Allowing port 80 to redirect to 443 at the application layer is more forgiving for users, standard practice for most public-facing web services. The cost: slightly more surface area open at the network layer, though nothing sensitive is actually exposed since the redirect happens before any real data is served. Denying Port 80 is most secure on paper, nothing insecure can ever happen on this port because it's simply unreachable. The real cost: any user who types a plain http:// URL, or any legacy client/bookmark/link that doesn't already specify HTTPS, just gets a hard connection failure instead of a smooth redirect. This is a usability regression, not just a theoretical one. Therefore, allowing port 80 seems like the best option for the current firewall rules.
+**What I'd reconsider if:** N/A
+
+---
 <!-- New entries go below this line, in chronological order -->
