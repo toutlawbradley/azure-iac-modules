@@ -172,4 +172,67 @@ in CI going forward — a real, concrete first case for why that scanner is in t
 **What I'd reconsider if:** N/A
 
 ---
+
+## Phase 2 — AKS Module
+ 
+### [Phase 2] Decision: RBAC over ABAC, MAC, or JIT for the AKS managed identity
+ 
+**Date:** 2026-09-07
+**Options considered:** RBAC (Role-Based Access Control), ABAC (Attribute-Based Access Control),
+MAC (Mandatory Access Control), JIT (Just-In-Time access)
+**Chose:** RBAC via a SystemAssigned managed identity
+**Why:** AKS needs its own identity because the cluster actively makes Azure API calls on its
+own, outside of anything I directly trigger — provisioning a load balancer when a `LoadBalancer`
+service is created, attaching a disk when a workload needs persistent storage. Any time something
+makes API calls to Azure, Azure needs to know who's asking and what they're allowed to do, so the
+cluster needs a real identity, not just my own credentials.
+A SystemAssigned managed identity handles the "who" — Azure creates and manages its lifecycle
+automatically, no credential for me to generate, store, or rotate by hand. But an identity alone
+carries zero permissions; permissions come from a separate mechanism: a role assignment, which
+states that a specific identity is allowed to do specific things, on a specific scope. That's
+RBAC — a predefined bundle of permissions (a "role") assigned to an identity, kept as narrow as
+the job actually requires.
+I considered the alternatives because they're all real Azure/security concepts, not because RBAC
+was assumed by default:
+- ABAC evaluates permissions dynamically based on attributes (time, resource tags, request
+  conditions) rather than a fixed role. Azure supports it as a real, newer feature, but it solves
+  a more complex problem than AKS actually has here — AKS's need (manage networking resources in
+  a specific resource group) is static and well-understood, not conditional. ABAC's extra
+  flexibility wouldn't buy anything, only add complexity.
+- MAC (centrally enforced, non-overridable policy, e.g. classification levels) doesn't have a
+  direct equivalent in Azure's IAM model the way Security+ teaches it for OS-level or classified
+  systems. Azure's closest parallel (resource locks, Azure Policy) is a different, complementary
+  layer, not a substitute for RBAC here.
+- JIT (temporary, on-demand elevated access, e.g. Azure PIM) is built for occasional *human*
+  privileged access, not a continuously-running system. AKS needs its permissions constantly, for
+  as long as the cluster is managing workloads — JIT's expiring-access model would actually break
+  normal cluster operation rather than protect anything.
+**What I'd reconsider if:** N/A
+---
+ 
+### [Phase 2] Bug: Provider install failure — architecture mismatch red herring, then real disk space issue
+ 
+**Date:** 2026-09-07
+**Symptom:** `terraform plan` in the AKS+networking scratch test harness failed with
+"Unrecognized remote plugin message... failed to negotiate the initial go-plugin protocol
+handshake," pointing at a `darwin_amd64` provider binary.
+**Root cause:** Initially suspected an Apple Silicon vs. Intel architecture mismatch, since the
+error mentioned `darwin_amd64`. Confirmed via `uname -m` that the machine is actually genuinely
+Intel (`x86_64`), ruling that theory out. Deleting `.terraform`/`.terraform.lock.hcl` and
+re-running `init` surfaced the real cause on the next attempt: `no space left on device` while
+writing the provider binary — the disk was at 97% capacity with only ~412Mi free. The original
+handshake failure was most likely a corrupted/incomplete provider download caused by the same
+underlying low-disk-space condition, not an architecture problem at all.
+**Fix:** Freed up disk space, then re-ran `terraform init` from the correct scratch directory;
+provider installed cleanly and `terraform plan` succeeded, showing 9 resources to add across both
+the networking and AKS modules with correct cross-module wiring (`vnet_subnet_id` correctly
+resolving from the networking module's output).
+**Lesson:** Don't commit to the first plausible-sounding diagnosis — the architecture theory fit
+the error message's surface details but fell apart on a two-second verification (`uname -m`).
+Disk space is worth checking early for any "plugin failed to install/run" style error, since a
+failed or truncated write during provider installation can produce confusing, seemingly unrelated
+error messages on the next attempt rather than a clear "disk full" message the first time.
+ 
+---
+ 
 <!-- New entries go below this line, in chronological order -->
