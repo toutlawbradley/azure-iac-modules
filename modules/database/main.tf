@@ -14,7 +14,7 @@ resource "random_password" "sql_admin" {
 }
 
 resource "azurerm_mssql_server" "main" {
-  name                          = "sql-iacmods-dev-eus-001"
+  name                          = "sql-iacmods-dev-eus2-001"
   resource_group_name           = var.resource_group_name
   location                      = "eastus2"
   version                       = "12.0"
@@ -24,6 +24,6 @@ resource "azurerm_mssql_server" "main" {
 }
 
 resource "azurerm_mssql_database" "main" {
-  name      = "db-iacmods-dev-eus-001"
+  name      = "db-iacmods-dev-eus2-001"
   server_id = azurerm_mssql_server.main.id
 }

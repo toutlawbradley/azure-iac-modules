@@ -1,5 +1,5 @@
 resource "azurerm_kubernetes_cluster" "main" {
-  name                = "aks-iacmods-dev-eus-001"
+  name                = "aks-iacmods-dev-eus2-001"
   location            = "eastus2"
   resource_group_name = var.resource_group_name
   dns_prefix          = "iacmods-dev"
