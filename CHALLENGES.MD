@@ -235,4 +235,62 @@ error messages on the next attempt rather than a clear "disk full" message the f
  
 ---
  
+### [Phase 2] Decision: Azure SQL Database over PostgreSQL
+ 
+**Date:** 2026-09-11
+**Options considered:** Azure Database for PostgreSQL, Azure SQL Database, reusing a plain
+storage account instead of a database module
+**Chose:** Azure SQL Database
+**Why:** The project's original scope left this module as an open "storage or database"
+decision. Storage was ruled out in favor of a real database specifically to learn something new
+rather than repeat the storage-account pattern already built in the bootstrap module. Between the
+two database options, choosing Azure SQL means this module reinforces material
+already being studied independently. PostgreSQL remains a legitimate, arguably
+more common choice in newer/cloud-native shops, but doesn't carry that specific cert-overlap
+benefit.
+**What I'd reconsider if:** N/A
+ 
+---
+ 
+### [Phase 2] Decision: Generate the SQL admin password with `random_password`, never type or store it as plaintext
+ 
+**Date:** 2026-09-19
+**Options considered:** Typing the password directly into Terraform code (rejected outright —
+same class of mistake GuardLine exists to catch), storing it in a gitignored `.tfvars` file,
+generating it with the `random` provider's `random_password` resource
+**Chose:** `random_password`, generated once by Terraform, referenced directly by the SQL server
+resource, and exposed as a sensitive output for the future Key Vault module to consume
+**Why:** A gitignored `.tfvars` file solves "don't commit the secret to GitHub," but the secret
+still exists in plaintext somewhere, and a human still has to choose and type it at some point.
+Generating the password with `random_password` means no human ever sees or types the raw value at
+any point — it's created once by Terraform, persisted in state (same durability reasoning as the
+Key Vault naming random suffix from Phase 0), and referenced directly by `.result`. The output is
+marked `sensitive = true` so it never prints in plain text during `plan` or `apply`. This sets up the same
+output-to-input handoff pattern used between networking and AKS: the database module generates
+and exposes the password, and the Key Vault module (next) will take it as an input and store it
+as an actual secret, closing the loop.
+**What I'd reconsider if:** N/A
+ 
+---
+ 
+### [Phase 2] Bug: SQL server defaulted to public network access enabled
+ 
+**Date:** 2026-09-19
+**Symptom:** `terraform plan` for `azurerm_mssql_server` showed `public_network_access_enabled =
+true`, even though nothing in the configuration explicitly requested public access.
+**Root cause:** Same underlying pattern as the bootstrap storage account issue from Phase 0 —
+`azurerm_mssql_server` defaults to public network access enabled in the AzureRM provider unless
+explicitly set otherwise. Provider defaults reflect Azure's own platform default, which favors
+ease-of-use over security, not the reverse.
+**Fix:** Added `public_network_access_enabled = false` to the `azurerm_mssql_server` resource
+block before ever applying it.
+**Lesson:** This is the same gap caught previously on the storage account, but this time it was
+anticipated proactively rather than discovered after the fact in the Azure Portal — a direct
+demonstration that "check public network access defaults on every resource type that has them"
+generalized into a real habit rather than a one-off fix. Worth treating any Azure resource with a
+`public_network_access_enabled`-style argument as guilty until proven innocent: verify and set it
+explicitly, don't trust the default.
+ 
+---
+ 
 <!-- New entries go below this line, in chronological order -->
