@@ -5,5 +5,5 @@ variable "vnet_subnet_id" {
 
 variable "resource_group_name" {
   type        = string
-  description = "Name of the resource group where networking resources will be created"
+  description = "Name of the resource group where aks resources will be created"
 }

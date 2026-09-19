@@ -1,7 +1,7 @@
 resource "azurerm_virtual_network" "main" {
     name                = "vnet-iacmods-dev-eus-001"
     resource_group_name = var.resource_group_name
-    location            = "eastus"
+    location            = "eastus2"
     address_space       = ["10.0.0.0/16"]
 }
 
@@ -21,7 +21,7 @@ resource "azurerm_subnet" "private_endpoints" {
 
 resource "azurerm_network_security_group" "aks" {
   name                = "nsg-aks-dev-eus-001"
-  location            = "eastus"
+  location            = "eastus2"
   resource_group_name = var.resource_group_name
 
     security_rule {
@@ -56,7 +56,7 @@ resource "azurerm_subnet_network_security_group_association" "aks" {
 
 resource "azurerm_network_security_group" "private_endpoints" {
   name                = "nsg-pe-dev-eus-001"
-  location            = "eastus"
+  location            = "eastus2"
   resource_group_name = var.resource_group_name
 
     security_rule {
