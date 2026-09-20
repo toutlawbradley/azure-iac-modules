@@ -525,4 +525,56 @@ an unnecessary restriction.
  
 ---
  
+## Remote Backend — First Real Use
+ 
+### [Backend] Bug: `examples/integration/` couldn't authenticate to the remote backend — a long chase through the wrong layers before finding the real cause
+ 
+**Date:** 2026-09-20
+**Symptom:** The first `terraform init` against the real remote backend (bootstrap's storage
+account) failed with a 403 `AuthorizationFailure` on "listing blobs." This was the first genuine
+use of the remote backend in the whole project — every prior `init`, including all of Phase 1 and
+Phase 2's scratch harnesses, used local state, so this exact failure mode had never been
+exercised before.
+**Root cause, and the order findings actually came in:**
+1. First suspected RBAC: the identity running Terraform had never been granted a data-plane role
+   on the storage account (subscription-level Owner does not grant blob data access — a real,
+   separate finding, confirmed via the portal's Role Assignments page showing no
+   "Storage Blob Data" role at all). Added `azurerm_role_assignment` granting
+   `Storage Blob Data Contributor`, scoped to the storage account. This was a real, necessary fix,
+   but not sufficient on its own.
+2. Still failed after the role assignment (confirmed present and correctly scoped in the portal)
+   and after waiting well past any reasonable RBAC propagation window. Suspected the network rule
+   next: added an explicit IP allow-list (`network_rules`) with `default_action = "Deny"`.
+3. Attempted to isolate network vs. permissions by temporarily setting
+   `default_action = "Allow"` — but the `apply` for that change had silently not taken effect
+   (confirmed later via `az storage account show --query networkRuleSet`, which showed
+   `defaultAction: "Deny"` still live, while Terraform's own plan believed it needed to make that
+   exact change — a real drift between assumed and actual state that produced a false negative
+   in the isolation test).
+4. Re-ran the network rule change properly, confirmed independently via the Azure CLI (not
+   Terraform) that `defaultAction` was genuinely `"Allow"` — and the exact same 403 persisted.
+   This conclusively ruled out both RBAC and the network rule as the actual cause.
+5. The real cause: `public_network_access_enabled = false` on the storage account itself — a
+   setting applied in Phase 0/bootstrap, in the project's very first week, that disables the
+   entire public data-plane endpoint outright, regardless of what `network_rules` or RBAC role
+   assignments say. This is the identical class of issue hit with Key Vault's secret write
+   earlier in the project, just on a different resource, and not connected to this failure until
+   checked directly via `az storage account show --query publicNetworkAccess`.
+**Fix:** Set `public_network_access_enabled = true` on the bootstrap storage account. `init`
+succeeded immediately afterward.
+**Lesson:** `public_network_access_enabled` and `network_rules.default_action` are two separate,
+independent gates, and the former overrides the latter entirely when disabled — this is the
+second time this exact layering has caused a debugging detour (Key Vault, then storage), and is
+worth checking first, not last, any time a data-plane 403 shows up on a resource with either
+setting configured. Separately: never trust that an `apply` "worked" based on the plan alone once
+there's any doubt — independently verifying live state via the Azure CLI (not just Terraform's
+own state or plan output) was what actually broke the stalemate here, after Terraform's own
+plan/apply cycle had produced a false sense of progress at least once.
+**What I'd reconsider if:** a private endpoint is ever wired through the private-endpoints subnet
+for this storage account specifically — at that point, reverting to
+`public_network_access_enabled = false` would be the correct, fully-hardened state, with Terraform
+itself running through the private path instead.
+---
+ 
 <!-- New entries go below this line, in chronological order -->
+ 

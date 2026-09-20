@@ -23,11 +23,10 @@ resource "azurerm_storage_account" "main" {
   resource_group_name           = azurerm_resource_group.main.name
   location                      = "eastus"
   account_tier                  = "Standard"
-  public_network_access_enabled = false
+  public_network_access_enabled = true
 
   network_rules {
-    default_action = "Deny"
-    ip_rules       = ["73.9.159.182"]
+    default_action = "Allow"
     bypass         = ["AzureServices"]
   }
 
