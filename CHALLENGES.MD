@@ -506,4 +506,23 @@ have" to "actually required."
  
 ---
  
+### [Hardening] Decision: Accepted NSG unrestricted ingress on the AKS subnet as intentional, not a gap
+ 
+**Date:** 2026-09-19
+**Options considered:** Restrict `source_address_prefix` on the AKS NSG's inbound rules to a
+specific range, or leave it as `"*"` and document the reasoning.
+**Chose:** Left as `"*"`, documented here rather than silently accepted.
+**Why:** These two rules (allow 443, allow 80) exist specifically to accept public web traffic
+into the cluster through its load balancer — that is the whole purpose of the ingress path, not
+an oversight. A load balancer fronting a public service has to accept connections from any client
+on the internet by design; scoping the source to a fixed range would defeat the point of exposing
+a public-facing service at all. This is different in kind from the private-endpoints NSG, whose
+source is correctly scoped to the AKS subnet specifically, since that traffic genuinely is
+internal-only.
+**What I'd reconsider if:** the workload behind this ingress point were ever internal-only rather
+than public-facing, in which case scoping the source down would be the correct fix rather than
+an unnecessary restriction.
+ 
+---
+ 
 <!-- New entries go below this line, in chronological order -->
