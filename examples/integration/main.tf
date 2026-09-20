@@ -26,7 +26,7 @@ module "aks" {
   source = "../../modules/aks"
 
   resource_group_name = azurerm_resource_group.main.name
-  vnet_subnet_id       = module.networking.aks_subnet_id
+  vnet_subnet_id      = module.networking.aks_subnet_id
 }
 
 module "database" {
@@ -39,6 +39,6 @@ module "key_vault" {
   source = "../../modules/key-vault"
 
   resource_group_name = azurerm_resource_group.main.name
-  sql_admin_password   = module.database.sql_admin_password
-  aks_principal_id     = module.aks.aks_principal_id
+  sql_admin_password  = module.database.sql_admin_password
+  aks_principal_id    = module.aks.aks_principal_id
 }

@@ -40,7 +40,7 @@ resource "azurerm_storage_account" "main" {
     }
   }
 
-  account_replication_type          = "GRS"
+  account_replication_type = "GRS"
 }
 
 resource "azurerm_storage_container" "main" {
