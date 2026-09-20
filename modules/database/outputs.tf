@@ -4,5 +4,5 @@ output "sql_admin_password" {
 }
 
 output "db_id" {
-  value     = azurerm_mssql_database.main.id
+  value = azurerm_mssql_database.main.id
 }

@@ -5,15 +5,15 @@ resource "azurerm_kubernetes_cluster" "main" {
   dns_prefix          = "iacmods-dev"
 
   network_profile {
-  network_plugin = "azure"
-  service_cidr   = "10.1.0.0/16"
-  dns_service_ip = "10.1.0.10"
+    network_plugin = "azure"
+    service_cidr   = "10.1.0.0/16"
+    dns_service_ip = "10.1.0.10"
   }
 
   default_node_pool {
-    name       = "default"
-    node_count = 1
-    vm_size    = "Standard_D2s_v7"
+    name           = "default"
+    node_count     = 1
+    vm_size        = "Standard_D2s_v7"
     vnet_subnet_id = var.vnet_subnet_id
   }
 

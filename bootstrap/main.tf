@@ -1,24 +1,24 @@
 terraform {
-    required_providers{
-        azurerm = {
-            source  = "hashicorp/azurerm"
-            version = "~>4.0"
-        }
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~>4.0"
     }
+  }
 }
 
 provider "azurerm" {
-    features{}
+  features {}
 }
 
 resource "azurerm_resource_group" "main" {
-    name     = "rg-iacmods-tfstate-dev-eus-001"
-    location = "eastus"
+  name     = "rg-iacmods-tfstate-dev-eus-001"
+  location = "eastus"
 }
 
 resource "azurerm_storage_account" "main" {
   name                          = "stiacmodstfsdeveus001"
-  resource_group_name           =  azurerm_resource_group.main.name
+  resource_group_name           = azurerm_resource_group.main.name
   location                      = "eastus"
   account_tier                  = "Standard"
   account_replication_type      = "LRS"
@@ -26,8 +26,8 @@ resource "azurerm_storage_account" "main" {
 }
 
 resource "azurerm_storage_container" "main" {
-    name                   = "tfstate"
-    storage_account_id   =  azurerm_storage_account.main.id
-    container_access_type  = "private"
+  name                  = "tfstate"
+  storage_account_id    = azurerm_storage_account.main.id
+  container_access_type = "private"
 }
 

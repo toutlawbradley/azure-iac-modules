@@ -16,11 +16,11 @@ resource "random_string" "kv_suffix" {
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_key_vault" "main" {
-  name                = "kv-iacmods-dev-${random_string.kv_suffix.result}"
-  location            = "eastus2"
-  resource_group_name = var.resource_group_name
-  tenant_id           = data.azurerm_client_config.current.tenant_id
-  sku_name            = "standard"
+  name                          = "kv-iacmods-dev-${random_string.kv_suffix.result}"
+  location                      = "eastus2"
+  resource_group_name           = var.resource_group_name
+  tenant_id                     = data.azurerm_client_config.current.tenant_id
+  sku_name                      = "standard"
   public_network_access_enabled = true
   rbac_authorization_enabled    = true
 }
