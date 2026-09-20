@@ -572,8 +572,11 @@ own state or plan output) was what actually broke the stalemate here, after Terr
 plan/apply cycle had produced a false sense of progress at least once.
 **What I'd reconsider if:** a private endpoint is ever wired through the private-endpoints subnet
 for this storage account specifically — at that point, reverting to
-`public_network_access_enabled = false` would be the correct, fully-hardened state, with Terraform
-itself running through the private path instead.
+`public_network_access_enabled = false` (and `network_rules.default_action` back to `"Deny"`)
+would be the correct, fully-hardened state, with Terraform itself running through the private
+path instead. Note: leaving `network_rules.default_action = "Allow"` is exactly why Trivy alert
+#19 ("storage account network rules should default to deny") is currently open — it's the
+direct, expected consequence of this tradeoff, not an unrelated or overlooked finding.
 ---
  
 ## Automated Testing — First Terratest Test
