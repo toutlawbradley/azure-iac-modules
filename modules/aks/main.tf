@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
+  }
+}
+
 resource "azurerm_kubernetes_cluster" "main" {
   name                = "aks-iacmods-dev-eus2-001"
   location            = "eastus2"
@@ -19,5 +30,9 @@ resource "azurerm_kubernetes_cluster" "main" {
 
   identity {
     type = "SystemAssigned"
+  }
+
+  node_provisioning_profile {
+    mode = "Manual"
   }
 }

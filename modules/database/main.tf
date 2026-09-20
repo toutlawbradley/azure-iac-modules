@@ -7,6 +7,17 @@ terraform {
   }
 }
 
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
+  }
+}
+
 resource "random_password" "sql_admin" {
   length           = 20
   special          = true

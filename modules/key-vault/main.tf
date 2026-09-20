@@ -7,6 +7,17 @@ terraform {
   }
 }
 
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
+  }
+}
+
 resource "random_string" "kv_suffix" {
   length  = 6
   special = false

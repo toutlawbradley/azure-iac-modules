@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
+  }
+}
+
 resource "azurerm_virtual_network" "main" {
   name                = "vnet-iacmods-dev-eus2-001"
   resource_group_name = var.resource_group_name
