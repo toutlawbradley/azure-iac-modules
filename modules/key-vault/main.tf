@@ -21,7 +21,7 @@ resource "azurerm_key_vault" "main" {
   resource_group_name = var.resource_group_name
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = "standard"
-  public_network_access_enabled = false
+  public_network_access_enabled = true
   rbac_authorization_enabled    = true
 }
 
@@ -32,6 +32,12 @@ resource "azurerm_key_vault_secret" "sql_admin_password" {
 }
 
 resource "azurerm_role_assignment" "aks_kv_access" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = var.aks_principal_id
+}
+
+resource "azurerm_role_assignment" "terraform_kv_access" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = data.azurerm_client_config.current.object_id
