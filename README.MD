@@ -6,7 +6,7 @@ This project builds four reusable Terraform modules for Azure: a resource group 
 foundation (VNet, subnets, NSGs), an AKS cluster, a storage/database module, and a Key Vault
 module. A Phase 3 integration example composes all four together into a real, deployed (and torn
 down) environment. Scope is deliberately limited to these four modules — anything beyond this list
-requires a real reason, written down, before it gets added.
+requires a reason, written down, before it gets added.
 
 ## Why this project
 

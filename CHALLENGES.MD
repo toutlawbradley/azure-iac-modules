@@ -422,4 +422,88 @@ pipeline config), consistent with the non-redundant split already reasoned throu
  
 ---
  
+## CI Pipeline — First Run Debugging
+ 
+### [CI] Bug: First CI run failed across every module with identical exit codes
+ 
+**Date:** 2026-09-19
+**Symptom:** The first push after adding `ci.yml` failed all five module jobs simultaneously,
+each with `terraform fmt -check` exiting code 3.
+**Root cause:** Every module's HCL had been hand-written and hand-edited across several weeks
+without an auto-formatting editor extension, so small inconsistencies (spacing, alignment)
+accumulated everywhere. `terraform fmt -check` was working correctly; it was surfacing genuine
+formatting drift, not failing spuriously.
+**Fix:** Ran `terraform fmt -recursive` from the repo root to auto-correct every file in one pass,
+then committed the whitespace-only diff.
+**Lesson:** Uniform failures across otherwise-unrelated files point at something structural (a
+missing setting, an environment mismatch, a style-only check) rather than five separate content
+bugs. Worth checking the pattern of the failure before diving into any one file.
+ 
+---
+ 
+### [CI] Bug: `node_provisioning_profile` required by CI's provider version but never enforced locally
+ 
+**Date:** 2026-09-19
+**Symptom:** `terraform validate` in CI failed on the AKS module with "At least 1
+`node_provisioning_profile` blocks are required" — a block that had never existed in the
+resource, and had never been required during any local `plan`/`apply`, including the deploy
+earlier the same day.
+**Root cause:** CI resolves providers independently in each module folder; without a committed,
+consistent lock file enforcing an exact AzureRM version across every module, CI could resolve a
+newer provider release than the one tested locally, and that newer release made this block
+mandatory rather than optional.
+**Fix:** Added `node_provisioning_profile { mode = "Manual" }` to the AKS cluster resource.
+**Lesson:** A local environment and a CI environment can silently diverge on provider versions
+even when the `.tf` files themselves are identical. A passing local `plan` is not proof CI will
+pass, and vice versa.
+ 
+---
+ 
+### [CI] Bug: Duplicate `required_providers` blocks introduced while fixing a tflint warning
+ 
+**Date:** 2026-09-19
+**Symptom:** After adding `required_version` to satisfy a tflint warning, `terraform init` in CI
+failed with "Duplicate required providers configuration... a module may have only one required
+providers configuration."
+**Root cause:** The fix was applied as a second, separate `terraform { required_providers {...} }`
+block pasted into the file, rather than merged into the single existing block. The same mistake
+recurred separately for the `random` provider in `database` and `key-vault`, which had their own
+provider declaration living in a second block rather than consolidated with `azurerm`.
+**Fix:** Merged every module down to exactly one `terraform {}` block, with `required_version`
+and all providers (`azurerm`, and `random` where used) declared together inside a single
+`required_providers` block.
+**Lesson:** "Add X" instructions are ambiguous between "add a new block" and "add a line to the
+existing block" — worth being explicit about which is meant, since the two produce structurally
+different, sometimes conflicting configurations.
+ 
+---
+ 
+## Trivy Hardening Pass
+ 
+### [Hardening] Decision: Fixed the fast, self-contained Trivy findings; deferred the ones needing new infrastructure
+ 
+**Date:** 2026-09-19
+**Options considered:** Fix all 18 findings immediately, fix none and defer everything, or
+triage by whether a fix is a config change to an existing resource versus one that requires
+adding new, independent infrastructure.
+**Chose:** Fixed in place: storage account network rules (default deny), infrastructure
+encryption, and geo-redundant replication; Key Vault purge protection, network ACLs, and secret
+content type/expiration; AKS network policy and a Log Analytics Workspace with `oms_agent` for
+cluster logging. Deferred, with reasoning recorded here rather than left unexplained: AKS API
+server authorized IP ranges, AKS private cluster mode, the Azure Policy add-on, and a dedicated
+disk encryption set for AKS; SQL Server extended auditing.
+**Why:** The fixed items were each a small, additive change to a resource that already existed,
+with no new dependency graph to design. The deferred items each require standing up
+infrastructure that doesn't exist yet and wasn't part of this pass's scope — a storage account
+dedicated to audit logs, App Registrations and service principals for Azure AD-integrated RBAC,
+a policy assignment, a disk encryption set tied back into Key Vault. Building any of those
+properly, rather than half-wiring them under momentum at the end of a long session, is worth
+treating as separate, deliberate work.
+**What I'd reconsider if:** this project needed to demonstrate compliance with a specific
+framework (e.g. HIPAA technical safeguards) rather than general hardening — at that point the
+deferred items, especially audit logging and private cluster access, would move from "nice to
+have" to "actually required."
+ 
+---
+ 
 <!-- New entries go below this line, in chronological order -->

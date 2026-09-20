@@ -19,6 +19,7 @@ resource "azurerm_kubernetes_cluster" "main" {
     network_plugin = "azure"
     service_cidr   = "10.1.0.0/16"
     dns_service_ip = "10.1.0.10"
+    network_policy = "azure"
   }
 
   default_node_pool {
@@ -35,4 +36,16 @@ resource "azurerm_kubernetes_cluster" "main" {
   node_provisioning_profile {
     mode = "Manual"
   }
+
+  oms_agent {
+    log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+  }
+}
+
+resource "azurerm_log_analytics_workspace" "main" {
+  name                = "log-iacmods-dev-eus2-001"
+  location            = "eastus2"
+  resource_group_name = var.resource_group_name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
 }

@@ -29,12 +29,22 @@ resource "azurerm_key_vault" "main" {
   sku_name                      = "standard"
   public_network_access_enabled = true
   rbac_authorization_enabled    = true
+
+  purge_protection_enabled = true
+
+  network_acls {
+    default_action = "Deny"
+    bypass         = "AzureServices"
+  }
 }
 
 resource "azurerm_key_vault_secret" "sql_admin_password" {
   name         = "sql-admin-password"
   value        = var.sql_admin_password
   key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+
+  expiration_date = "2027-09-19T00:00:00Z"
 }
 
 resource "azurerm_role_assignment" "aks_kv_access" {
