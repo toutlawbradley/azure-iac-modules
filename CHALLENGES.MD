@@ -293,4 +293,133 @@ explicitly, don't trust the default.
  
 ---
  
+## Phase 3-adjacent — First Real Full-Stack Deploy
+ 
+### [Deploy] Bug: Cascading failures from a mid-flight region change
+ 
+**Date:** 2026-09-19
+**Symptom:** A real `terraform apply` of all four modules together initially failed on three
+unrelated errors at once: AKS rejected `Standard_B2s` as an unavailable VM size for the
+subscription, Azure SQL Server rejected `eastus` with "Provisioning is restricted in this
+region," and the Key Vault secret write failed with a 403 (RBAC, addressed separately below).
+Fixing the region by changing `location` to `eastus2` across modules then triggered a second,
+different wave of failures: `SubnetNotFound` on AKS, a `409 Conflict` on the SQL server (name
+already reserved in `eastus` from the first failed attempt), and `VaultNotFound` on the secret.
+**Root cause:** Changing `location` on already-created resources (VNet, NSGs, the vault) forces
+Terraform to destroy and recreate them (`must be replaced`), not just update them in place. The
+destroy/recreate cycle wasn't instantaneous, so dependent resources (AKS's subnet reference, the
+Key Vault secret write) fired before their dependencies had finished rebuilding in the new
+region, producing "not found" errors that looked unrelated but were actually just a timing/
+ordering symptom of the region change itself. Separately, Azure SQL Server names are globally
+unique and sticky to their original region — the first failed attempt had already reserved
+`sql-iacmods-dev-eus2-001` against `eastus`, so recreating it in `eastus2` under the same name
+was rejected outright; a new name was required. AKS also failed separately with
+`ServiceCidrOverlapExistingSubnetsCidr`, since it defaults to `10.0.0.0/16` for internal service
+networking, directly overlapping the VNet's own `10.0.0.0/16` address space.
+**Fix:** Renamed the SQL server to `sql-iacmods-dev-001` (dropping the region from the name
+entirely, decoupling database `location` into its own variable independent of the other
+modules). Added an explicit `network_profile` block to the AKS cluster with `service_cidr =
+"10.1.0.0/16"`, non-overlapping with the VNet. Re-ran `apply`, letting the region-driven
+recreation fully settle before dependent resources retried.
+**Lesson:** A region change on live resources is not a simple in-place edit — it's a real
+destroy-and-recreate with real ordering implications for anything downstream. Globally-unique
+resource names (SQL servers, same class of constraint as storage accounts and Key Vaults) can
+get "stuck" against a failed attempt's region and need a genuinely new name, not just a retry.
+AKS's internal service CIDR needs to be explicitly set to a range outside the VNet's own address
+space; it doesn't infer this automatically.
+ 
+---
+ 
+### [Deploy] Bug: Key Vault public network access blocked Terraform's own secret write
+ 
+**Date:** 2026-09-19
+**Symptom:** After fixing the region issues, the Key Vault secret write failed with a 403:
+"Public network access is disabled and request is not from a trusted service nor via an approved
+private link."
+**Root cause:** `public_network_access_enabled = false` on the vault (a deliberate hardening
+choice, same pattern as the storage account and SQL server) blocks all data-plane traffic,
+including from the machine running Terraform itself, since it isn't "a trusted service" and isn't
+connecting via a private endpoint (the private-endpoints subnet exists in the networking module,
+but nothing is actually wired to route through it yet). This is a genuine distinction between the
+management plane (creating the vault itself, unaffected) and the data plane (writing secrets
+into it, blocked).
+**Fix:** Temporarily set `public_network_access_enabled = true` for this verification deploy,
+given the time-boxed nature of the free-credit window. Properly wiring a private endpoint through
+the existing private-endpoints subnet is real, deliberate future work, not something to rush
+under time pressure.
+**Lesson:** Locking down public access is the secure choice, but it also blocks your own tooling
+unless that tooling runs from inside the VNet or through a private endpoint. This is a real,
+common production tension, not a mistake — the fix is architectural (private endpoints, or
+running Terraform from a trusted network), not just flipping the setting back on permanently.
+ 
+---
+ 
+### [Deploy] Bug: Accidentally regressed AKS's Key Vault role from least-privilege to broad access
+ 
+**Date:** 2026-09-19
+**Symptom:** After a real deploy, the Key Vault's Role Assignments page showed only "Key Vault
+Secrets Officer" assigned to my own account, with no "Key Vault Secrets User" assignment for
+AKS's managed identity anywhere — even though `terraform plan` showed the `aks_kv_access` role
+assignment resource existing with a real ID and no drift.
+**Root cause:** While troubleshooting the earlier 403 (Terraform's own identity lacking write
+access), I edited the AKS role assignment's `role_definition_name` from `"Key Vault Secrets
+User"` to `"Key Vault Secrets Officer"` instead of adding a second, separate role assignment for
+my own identity — collapsing two distinct-purpose assignments (AKS's narrow read access, my own
+broader write access) into one, and silently granting AKS's identity far more privilege than it
+actually needs (write and delete, when it only ever needs to read).
+**Fix:** Restored two separate `azurerm_role_assignment` resources: `aks_kv_access` (Key Vault
+Secrets User, scoped to AKS's `principal_id`) and a new `terraform_kv_access` (Key Vault Secrets
+Officer, scoped to `data.azurerm_client_config.current.object_id`, my own identity). Re-applied
+and confirmed via the portal: two separate entries, correctly scoped, AKS's managed identity
+showing specifically under "Key Vault Secrets User."
+**Lesson:** Under debugging pressure, it's easy to "fix" an access error by broadening the
+existing assignment rather than adding the narrower one you actually need. Caught only by going
+back to check the portal directly rather than trusting that a `plan` showing "no changes" meant
+the architecture was still correct — the assignment can be technically unchanged in state while
+still being the wrong assignment. This directly undermines the least-privilege reasoning already
+logged for the original RBAC decision if left uncaught.
+ 
+---
+ 
+### [Deploy] Bug: RBAC propagation delay blocked `terraform destroy`
+ 
+**Date:** 2026-09-19
+**Symptom:** After restoring the correct role assignments, `terraform destroy` failed repeatedly
+(across three separate attempts, with real time elapsed between them) with 403 errors reading and
+deleting the Key Vault secret, even though the portal confirmed the correct role assignments were
+in place.
+**Root cause:** Likely RBAC propagation delay following the recent role assignment change,
+though this couldn't be conclusively confirmed even after several minutes' wait — the error
+message itself explicitly suggested this ("if role assignments... were changed recently, please
+observe propagation time"), but a genuine multi-minute wait didn't resolve it.
+**Fix:** Deleted the Key Vault directly through the Azure Portal instead of via Terraform, then
+re-ran `terraform destroy`, which correctly recognized the vault no longer existed and completed
+cleanup without further permission checks against it.
+**Lesson:** When a resource is stuck on its own permissions mid-teardown, deleting it directly
+through the portal and letting Terraform reconcile afterward is a legitimate, pragmatic escape
+hatch — Terraform doesn't need to be the tool that removes every resource if a permissions
+deadlock makes that impractical.
+ 
+---
+ 
+## CI Pipeline
+ 
+### [CI] Decision: Built the Phase 0-specified pipeline (fmt/validate/tflint/Trivy/GuardLine)
+ 
+**Date:** 2026-09-19
+**Options considered:** N/A — this implements the tooling already decided in ADR-0003 and the
+original Phase 0 scope, not a new tool choice.
+**Chose:** A matrix job running `terraform fmt -check`, `terraform init -backend=false`,
+`terraform validate`, and `tflint` once per module folder (bootstrap, networking, aks, database,
+key-vault); a separate job running Trivy's config scan across the whole repo with SARIF output to
+GitHub's Security tab; a separate job running GuardLine (the existing published Action) against
+this repo's own `.github/workflows/*.yml`, matching ADR-0003's division of labor.
+**Why:** Validation runs per-module and without a real backend connection specifically so CI
+doesn't need Azure credentials just to check syntax and catch obvious misconfigurations early and
+cheaply. Trivy and GuardLine stay as separate jobs scanning separate targets (infrastructure vs.
+pipeline config), consistent with the non-redundant split already reasoned through in ADR-0003.
+**What I'd reconsider if:** N/A
+ 
+---
+ 
 <!-- New entries go below this line, in chronological order -->
