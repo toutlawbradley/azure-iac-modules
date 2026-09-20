@@ -65,6 +65,7 @@ jobs:
           scan-ref: "."
           format: "sarif"
           output: "trivy-results.sarif"
+          skip-dirs: "test"
 
       - name: Upload Trivy results to Security tab
         uses: github/codeql-action/upload-sarif@v3
