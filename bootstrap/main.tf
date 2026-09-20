@@ -27,6 +27,7 @@ resource "azurerm_storage_account" "main" {
 
   network_rules {
     default_action = "Deny"
+    ip_rules       = ["73.9.159.182"]
     bypass         = ["AzureServices"]
   }
 
@@ -40,7 +41,6 @@ resource "azurerm_storage_account" "main" {
     }
   }
 
-  infrastructure_encryption_enabled = true
   account_replication_type          = "GRS"
 }
 
