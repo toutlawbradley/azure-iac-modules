@@ -576,5 +576,51 @@ for this storage account specifically — at that point, reverting to
 itself running through the private path instead.
 ---
  
+## Automated Testing — First Terratest Test
+ 
+### [Testing] Bug: Pointing Terratest directly at a module folder fails with a missing provider configuration
+ 
+**Date:** 2026-09-20
+**Symptom:** `go test` compiled and ran, but `terraform apply` failed inside the test with
+"Provider 'azurerm' requires explicit configuration... the argument 'features' is required, but
+no definition was found" — despite `modules/networking/main.tf` never needing a provider block
+in any other context in this project.
+**Root cause:** `TerraformDir` was pointed directly at `../modules/networking`, treating the
+module folder as if it were a standalone root config. But modules deliberately never configure
+their own provider (the same rule established back in Phase 1, so a module's own provider
+requirements don't conflict with whatever calls it) — they rely on the root config that calls
+them to supply that configuration. Every previous successful `apply` of this module, in scratch
+harnesses and in `examples/integration/`, worked precisely because it was always called from a
+root config with its own `provider "azurerm" { features {} }` block. Terratest needs the exact
+same thing; pointing it straight at a bare module skips that entirely.
+**Fix:** Created `test/fixtures/networking/main.tf` — a small, dedicated root config (provider
+block, a resource group, a `module "networking"` call, and an `output` re-exposing
+`aks_subnet_id`) that Terratest actually runs against, instead of pointing at the module directly.
+**Lesson:** The same "modules need a caller" rule that governed every manual test all project
+applies identically to automated tests — Terratest doesn't get a special exception, and a module
+folder is never a valid, standalone thing to `apply` on its own, regardless of which tool is
+doing the applying.
+ 
+---
+ 
+### [Testing] Bug: Go map literal syntax error after removing an unused key
+ 
+**Date:** 2026-09-20
+**Symptom:** `go test` failed to even build, with `missing key in map literal` at the `Vars:`
+field of `terraform.Options`.
+**Root cause:** After moving `resource_group_name` into the new test fixture (removing the need
+to pass it in as a variable), the key (`"resource_group_name":`) was deleted from the `Vars` map
+literal but its value (the literal resource group name string) was left behind on its own line —
+a Go map entry requires a `key: value` pair, and a bare value with no key doesn't compile.
+**Fix:** Removed the `Vars` field from `terraform.Options` entirely, since the fixture now
+creates its own resource group internally and needs no external input.
+**Lesson:** A compile-time error in Go (caught before any Terraform command even runs) is a
+different class of problem than a runtime Terraform error — worth recognizing the difference
+quickly, since the fix is almost always a small, local syntax issue rather than anything to do
+with Azure, providers, or infrastructure state.
+ 
+---
+ 
 <!-- New entries go below this line, in chronological order -->
+
  
